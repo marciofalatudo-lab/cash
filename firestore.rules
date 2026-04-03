@@ -1,0 +1,159 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: userId (uid)
+// Fields:
+//   - uid: string (required)
+//   - displayName: string (optional)
+//   - email: string (required)
+//   - photoURL: string (optional)
+//   - plan: string (FREE, PRO, PRO_MAX)
+//   - balance: number
+//   - referralCode: string
+//   - referredBy: string
+//   - streak: int
+//   - lastActive: string (ISO 8601)
+//   - videosCountToday: int
+//   - totalEarnings: number
+//
+// Collection: videos
+// Document ID: videoId
+// Fields:
+//   - id: string
+//   - userId: string (required)
+//   - title: string
+//   - description: string
+//   - hashtags: list
+//   - videoUrl: string
+//   - thumbnailUrl: string
+//   - type: string (VIRAL, SALES)
+//   - createdAt: timestamp
+//   - status: string (PENDING, COMPLETED, FAILED)
+//
+// Collection: transactions
+// Document ID: transactionId
+// Fields:
+//   - id: string
+//   - userId: string (required)
+//   - amount: number
+//   - type: string (REFERRAL, VIDEO_BONUS, STREAK_BONUS)
+//   - description: string
+//   - createdAt: timestamp
+//
+// Collection: referrals
+// Document ID: referralId
+// Fields:
+//   - referrerId: string (required)
+//   - refereeId: string (required)
+//   - status: string (PENDING, COMPLETED)
+//   - createdAt: timestamp
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "marciofalatudo@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string &&
+        (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.plan in ['FREE', 'PRO', 'PRO_MAX'] &&
+             data.balance is number && data.balance >= 0;
+    }
+
+    function isValidVideo(data) {
+      return data.userId is string && data.userId.size() > 0 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.type in ['VIRAL', 'SALES'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && data.userId.size() > 0 &&
+             data.amount is number &&
+             data.type in ['REFERRAL', 'VIDEO_BONUS', 'STREAK_BONUS'] &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.plan == 'FREE';
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) &&
+                    (request.resource.data.plan == resource.data.plan || isAdmin());
+    }
+
+    match /videos/{videoId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidVideo(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && isValidVideo(request.resource.data) &&
+                    request.resource.data.userId == resource.data.userId;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAdmin(); // Only system/admin can create transactions
+    }
+
+    match /referrals/{referralId} {
+      allow read: if isAuthenticated() && (resource.data.referrerId == request.auth.uid || resource.data.refereeId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.refereeId == request.auth.uid;
+      allow update: if isAdmin();
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and account status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "plan": { "type": "string", "enum": ["FREE", "PRO", "PRO_MAX"] },
+        "balance": { "type": "number" },
+        "referralCode": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "streak": { "type": "integer" },
+        "lastActive": { "type": "string", "format": "date-time" },
+        "videosCountToday": { "type": "integer" },
+        "totalEarnings": { "type": "number" }
+      },
+      "required": ["uid", "email", "plan", "balance"]
+    },
+    "Video": {
+      "title": "Video",
+      "description": "Generated video content",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "hashtags": { "type": "array", "items": { "type": "string" } },
+        "videoUrl": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "type": { "type": "string", "enum": ["VIRAL", "SALES"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["PENDING", "COMPLETED", "FAILED"] }
+      },
+      "required": ["userId", "title", "type", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Earnings or referral bonuses",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["REFERRAL", "VIDEO_BONUS", "STREAK_BONUS"] },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "type", "createdAt"]
+    },
+    "Referral": {
+      "title": "Referral",
+      "description": "Referral tracking",
+      "type": "object",
+      "properties": {
+        "referrerId": { "type": "string" },
+        "refereeId": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "COMPLETED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["referrerId", "refereeId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/videos/{videoId}": {
+      "schema": "Video",
+      "description": "All generated videos"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Financial transactions"
+    },
+    "/referrals/{referralId}": {
+      "schema": "Referral",
+      "description": "Referral connections"
+    }
+  }
+}
